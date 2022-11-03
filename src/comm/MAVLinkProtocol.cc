@@ -31,6 +31,7 @@
 #include "QGCLoggingCategory.h"
 #include "MultiVehicleManager.h"
 #include "SettingsManager.h"
+#include "Encryption/xor.h"
 
 Q_DECLARE_METATYPE(mavlink_message_t)
 
@@ -312,6 +313,9 @@ void MAVLinkProtocol::receiveBytes(LinkInterface* link, QByteArray b)
             if (_message.msgid == MAVLINK_MSG_ID_HEARTBEAT) {
                 _startLogging();
                 mavlink_heartbeat_t heartbeat;
+                char buf[sizeof(_message)];
+                memcpy(buf, &_message, sizeof(_message));
+                xor_crypto(buf, sizeof(buf));
                 mavlink_msg_heartbeat_decode(&_message, &heartbeat);
                 emit vehicleHeartbeatInfo(link, _message.sysid, _message.compid, heartbeat.autopilot, heartbeat.type);
             } else if (_message.msgid == MAVLINK_MSG_ID_HIGH_LATENCY) {

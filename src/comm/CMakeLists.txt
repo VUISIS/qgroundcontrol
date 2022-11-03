@@ -38,6 +38,7 @@ add_library(comm
 	UdpIODevice.h
 	UDPLink.cc
 	UDPLink.h
+	Encryption/xor.h
 
 	${EXTRA_SRC}
 )
