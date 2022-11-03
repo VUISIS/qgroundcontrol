@@ -11,6 +11,13 @@ if(BUILD_TESTING)
 	)
 endif()
 
+if(ENABLE_ENCRYPTION)
+	add_compile_definitions(ENCRYPTION)
+	list(APPEND EXTRA_SRC 
+		Encryption/xor.h
+	)
+endif()
+
 add_library(comm
 	#BluetoothLink.cc
 	#BluetoothLink.h
@@ -38,7 +45,6 @@ add_library(comm
 	UdpIODevice.h
 	UDPLink.cc
 	UDPLink.h
-	Encryption/xor.h
 
 	${EXTRA_SRC}
 )
