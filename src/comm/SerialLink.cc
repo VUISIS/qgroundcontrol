@@ -25,6 +25,10 @@
 #include "QGCSerialPortInfo.h"
 #include "LinkManager.h"
 
+#if ENCRYPTION
+#include "Encryption/xor.h"
+#endif
+
 QGC_LOGGING_CATEGORY(SerialLinkLog, "SerialLinkLog")
 
 static QStringList kSupportedBaudRates;
@@ -66,6 +70,9 @@ bool SerialLink::_isBootloader()
 
 void SerialLink::_writeBytes(const QByteArray data)
 {
+#if ENCRYPTION
+    xor_crypto(data);
+#endif
     if(_port && _port->isOpen()) {
         emit bytesSent(this, data);
         _port->write(data);
@@ -240,6 +247,9 @@ void SerialLink::_readBytes(void)
             QByteArray buffer;
             buffer.resize(byteCount);
             _port->read(buffer.data(), buffer.size());
+#if ENCRYPTION
+            xor_crypto(buffer);
+#endif
             emit bytesReceived(this, buffer);
         }
     } else {

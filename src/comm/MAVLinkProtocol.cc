@@ -32,10 +32,6 @@
 #include "MultiVehicleManager.h"
 #include "SettingsManager.h"
 
-#if ENCRYPTION
-#include "Encryption/xor.h"
-#endif
-
 Q_DECLARE_METATYPE(mavlink_message_t)
 
 QGC_LOGGING_CATEGORY(MAVLinkProtocolLog, "MAVLinkProtocolLog")
@@ -198,9 +194,6 @@ void MAVLinkProtocol::logSentBytes(LinkInterface* link, QByteArray b){
 
 void MAVLinkProtocol::receiveBytes(LinkInterface* link, QByteArray b)
 {
-#if ENCRYPTION
-    xor_crypto(b);
-#endif
     // Since receiveBytes signals cross threads we can end up with signals in the queue
     // that come through after the link is disconnected. For these we just drop the data
     // since the link is closed.
