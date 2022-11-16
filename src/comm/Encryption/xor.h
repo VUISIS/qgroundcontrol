@@ -1,10 +1,10 @@
 #include <QByteArray>
 
-static void xor_crypto(QByteArray message)
+static void xor_crypto(char* message, int start_pos, int len)
 {
     char key = 'X';
   
-    for (int i = 0; i < message.length(); i++)
+    for (int i = start_pos; i < len; i++)
     {
         message[i] = message[i] ^ key;
     }

@@ -27,6 +27,12 @@
 
 #if ENCRYPTION
 #include "Encryption/xor.h"
+
+#define MAVLINK_IFLAG_SIGNED  0x01
+#define MAVLINK_STX 253
+#define MAVLINK_CORE_HEADER_LEN 9
+#define MAVLINK_SIGNATURE_BLOCK_LEN 13
+#define MAVLINK_CHECKSUM_LEN 2
 #endif
 
 QGC_LOGGING_CATEGORY(SerialLinkLog, "SerialLinkLog")
@@ -71,8 +77,20 @@ bool SerialLink::_isBootloader()
 void SerialLink::_writeBytes(const QByteArray data)
 {
 #if ENCRYPTION
-    xor_crypto(data);
-#endif
+    char* msg = (char*)data.data();
+
+    xor_crypto(msg, MAVLINK_CORE_HEADER_LEN + 1, MAVLINK_CORE_HEADER_LEN + (data[1] - '0') + 1);
+
+    if(_port && _port->isOpen()) {
+        emit bytesSent(this, QByteArray(msg, data.size()));
+        _port->write(QByteArray(msg, data.size()));
+    } else {
+        // Error occurred
+        qWarning() << "Serial port not writeable";
+        _emitLinkError(tr("Could not send data - link %1 is disconnected!").arg(_config->name()));
+    }
+    delete[] msg;
+#else
     if(_port && _port->isOpen()) {
         emit bytesSent(this, data);
         _port->write(data);
@@ -81,6 +99,7 @@ void SerialLink::_writeBytes(const QByteArray data)
         qWarning() << "Serial port not writeable";
         _emitLinkError(tr("Could not send data - link %1 is disconnected!").arg(_config->name()));
     }
+#endif
 }
 
 void SerialLink::disconnect(void)
@@ -248,9 +267,16 @@ void SerialLink::_readBytes(void)
             buffer.resize(byteCount);
             _port->read(buffer.data(), buffer.size());
 #if ENCRYPTION
-            xor_crypto(buffer);
-#endif
+            char* msg = buffer.data();
+
+            xor_crypto(msg, MAVLINK_CORE_HEADER_LEN + 1, MAVLINK_CORE_HEADER_LEN + (buffer[1] - '0') + 1);
+
+            emit bytesReceived(this, QByteArray(msg, buffer.size()));
+
+            delete[] msg;
+#else
             emit bytesReceived(this, buffer);
+#endif
         }
     } else {
         // Error occurred
