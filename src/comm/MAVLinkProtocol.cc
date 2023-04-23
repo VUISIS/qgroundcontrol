@@ -32,6 +32,11 @@
 #include "MultiVehicleManager.h"
 #include "SettingsManager.h"
 
+#if CRYPTOPP
+    #include <osrng.h>
+    #include <rsa.h>
+#endif
+
 Q_DECLARE_METATYPE(mavlink_message_t)
 
 QGC_LOGGING_CATEGORY(MAVLinkProtocolLog, "MAVLinkProtocolLog")
@@ -194,6 +199,13 @@ void MAVLinkProtocol::logSentBytes(LinkInterface* link, QByteArray b){
 
 void MAVLinkProtocol::receiveBytes(LinkInterface* link, QByteArray b)
 {
+#if CRYPTOPP
+    CryptoPP::AutoSeededRandomPool rng;
+    CryptoPP::InvertibleRSAFunction params;
+    params.GenerateRandomWithKeySize(rng, 3072);
+    CryptoPP::RSA::PrivateKey privateKey(params);
+    CryptoPP::RSA::PublicKey publicKey(params);
+#endif
     // Since receiveBytes signals cross threads we can end up with signals in the queue
     // that come through after the link is disconnected. For these we just drop the data
     // since the link is closed.

@@ -15,7 +15,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 include(FeatureSummary)
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        add_compile_options(-Wall -Wextra)
+        add_compile_options(-Wall -Wextra -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-maybe-uninitialized -Wno-stringop-overflow)
 endif()
 
 # CMake build type
@@ -205,6 +205,21 @@ else()
 endif()
 
 target_link_libraries(QGroundControl PRIVATE qgc)
+
+#=============================================================================
+# cryptopp
+#
+if (ENABLE_ENCRYPTION)
+    add_definitions(
+        -DCRYPTOPP=1
+    )
+	find_program(MAKE make)
+	exec_program(${MAKE} ${CMAKE_SOURCE_DIR}/libs/cryptopp)
+	include_directories(
+		libs/cryptopp
+	)
+	target_link_libraries(QGroundControl PRIVATE ${CMAKE_SOURCE_DIR}/libs/cryptopp/libcryptopp.a)
+endif()
 
 # Files/directories to install
 install(
