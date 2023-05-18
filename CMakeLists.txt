@@ -213,8 +213,7 @@ if (ENABLE_ENCRYPTION)
     add_definitions(
         -DCRYPTOPP=1
     )
-	find_program(MAKE make)
-	exec_program(${MAKE} ${CMAKE_SOURCE_DIR}/libs/cryptopp)
+	exec_program(/usr/bin/make ${CMAKE_SOURCE_DIR}/libs/cryptopp)
 	include_directories(
 		libs/cryptopp
 	)

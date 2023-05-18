@@ -25,6 +25,28 @@
 #include "QGCSerialPortInfo.h"
 #include "LinkManager.h"
 
+#ifdef CRYPTOPP
+#include "cryptlib.h"
+#include "rijndael.h"
+#include "modes.h"
+#include "files.h"
+#include "osrng.h"
+#include "hex.h"
+
+using namespace CryptoPP;
+
+const unsigned char ckey[] = { 0x73, 0xCE, 0x95, 0x04, 0xD0, 0x5D, 0x5D, 0xAA, 
+                            0xE0, 0xDD, 0x84, 0x95, 0x80, 0x8A, 0x9B, 0x29, 
+                            0xDE, 0x64, 0x01, 0xCD, 0x8A, 0xC6, 0x63, 0x0B, 
+                            0x27, 0x74, 0x5F, 0x1E, 0xCB, 0x2B, 0x4E, 0x66 };
+
+const unsigned char civ[] = { 0x2C, 0x0F, 0xDE, 0x26, 0xA6, 0xFB, 0x1A, 0x47, 
+                           0x8F, 0x47, 0xBE, 0xAE, 0xFF, 0x80, 0x26, 0xFA };
+
+SecByteBlock key(reinterpret_cast<const byte*>(&ckey), sizeof(ckey) / sizeof(ckey[0]));
+SecByteBlock iv(reinterpret_cast<const byte*>(&civ), sizeof(civ) / sizeof(civ[0]));
+#endif
+
 QGC_LOGGING_CATEGORY(SerialLinkLog, "SerialLinkLog")
 
 static QStringList kSupportedBaudRates;
@@ -66,6 +88,35 @@ bool SerialLink::_isBootloader()
 
 void SerialLink::_writeBytes(const QByteArray data)
 {
+#ifdef CRYPTOPP
+    try
+    {
+        std::string cipher;
+        std::string plain(data.data());
+        CBC_Mode< AES >::Encryption e;
+        e.SetKeyWithIV(key, key.size(), iv);
+
+        StringSource s(plain, true, 
+            new StreamTransformationFilter(e,
+                new StringSink(cipher)
+            ) 
+        ); 
+
+        if(_port && _port->isOpen()) {
+            emit bytesSent(this, QByteArray(const_cast<char*>(cipher.c_str()), cipher.size()));
+            _port->write(QByteArray(const_cast<char*>(cipher.c_str()), cipher.size()));
+        } else {
+            // Error occurred
+            qWarning() << "Serial port not writeable";
+            _emitLinkError(tr("Could not send data - link %1 is disconnected!").arg(_config->name()));
+        }
+    }
+    catch(const Exception& e)
+    {
+        qWarning() << "Encryption exception";
+        _emitLinkError(tr("Could not send data - encryption is failing!").arg(_config->name()));
+    }
+#else
     if(_port && _port->isOpen()) {
         emit bytesSent(this, data);
         _port->write(data);
@@ -74,6 +125,7 @@ void SerialLink::_writeBytes(const QByteArray data)
         qWarning() << "Serial port not writeable";
         _emitLinkError(tr("Could not send data - link %1 is disconnected!").arg(_config->name()));
     }
+#endif
 }
 
 void SerialLink::disconnect(void)
@@ -240,7 +292,30 @@ void SerialLink::_readBytes(void)
             QByteArray buffer;
             buffer.resize(byteCount);
             _port->read(buffer.data(), buffer.size());
+#if CRYPTOPP
+            try
+            {
+                std::string recovered;
+                std::string cipher(buffer.data());
+                CBC_Mode< AES >::Decryption d;
+                d.SetKeyWithIV(key, key.size(), iv);
+
+                StringSource s(cipher, true, 
+                    new StreamTransformationFilter(d,
+                        new StringSink(recovered)
+                    ) 
+                ); 
+
+                emit bytesReceived(this, QByteArray(const_cast<char*>(recovered.c_str()), recovered.size()));
+            }
+            catch(const Exception& e)
+            {
+                qWarning() << "Dencryption exception";
+                _emitLinkError(tr("Could not send data - decryption is failing!").arg(_config->name()));
+            }
+#else
             emit bytesReceived(this, buffer);
+#endif
         }
     } else {
         // Error occurred
