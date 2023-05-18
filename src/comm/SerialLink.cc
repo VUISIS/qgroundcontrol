@@ -35,16 +35,12 @@
 
 using namespace CryptoPP;
 
-const unsigned char ckey[] = { 0x73, 0xCE, 0x95, 0x04, 0xD0, 0x5D, 0x5D, 0xAA, 
-                            0xE0, 0xDD, 0x84, 0x95, 0x80, 0x8A, 0x9B, 0x29, 
-                            0xDE, 0x64, 0x01, 0xCD, 0x8A, 0xC6, 0x63, 0x0B, 
-                            0x27, 0x74, 0x5F, 0x1E, 0xCB, 0x2B, 0x4E, 0x66 };
+const unsigned char ckey[] = { 0x6C, 0xB9, 0xD7, 0x91, 0x97, 0x9D, 0x37, 0x20, 0x7E, 0x6D, 0x52, 0xF2, 0xBC, 0x0F, 0xB6, 0x28 };
 
-const unsigned char civ[] = { 0x2C, 0x0F, 0xDE, 0x26, 0xA6, 0xFB, 0x1A, 0x47, 
-                           0x8F, 0x47, 0xBE, 0xAE, 0xFF, 0x80, 0x26, 0xFA };
+const unsigned char civ[] = { 0x0F, 0xDB, 0x87, 0x60, 0x18, 0x1F, 0xF3, 0xCE, 0x2B, 0xB0, 0x7A, 0x54, 0x06, 0x33, 0x59, 0x81 };
 
-SecByteBlock key(reinterpret_cast<const byte*>(&ckey), sizeof(ckey) / sizeof(ckey[0]));
-SecByteBlock iv(reinterpret_cast<const byte*>(&civ), sizeof(civ) / sizeof(civ[0]));
+SecByteBlock key(reinterpret_cast<const byte*>(&ckey), 16);
+SecByteBlock iv(reinterpret_cast<const byte*>(&civ), 16);
 #endif
 
 QGC_LOGGING_CATEGORY(SerialLinkLog, "SerialLinkLog")
@@ -92,19 +88,27 @@ void SerialLink::_writeBytes(const QByteArray data)
     try
     {
         std::string cipher;
-        std::string plain(data.data());
+        std::string plain(data.constData(), data.length());
+
         CBC_Mode< AES >::Encryption e;
         e.SetKeyWithIV(key, key.size(), iv);
 
+        int num = 272 - plain.length();
+        for(int i = 0;i < num;++i)
+        {
+            plain.push_back('0');
+        }
+
         StringSource s(plain, true, 
             new StreamTransformationFilter(e,
-                new StringSink(cipher)
+                new StringSink(cipher),
+                BlockPaddingSchemeDef::BlockPaddingScheme::ZEROS_PADDING
             ) 
         ); 
 
         if(_port && _port->isOpen()) {
-            emit bytesSent(this, QByteArray(const_cast<char*>(cipher.c_str()), cipher.size()));
-            _port->write(QByteArray(const_cast<char*>(cipher.c_str()), cipher.size()));
+            emit bytesSent(this, QByteArray(const_cast<char*>(cipher.c_str()), cipher.length()));
+            _port->write(QByteArray(const_cast<char*>(cipher.c_str()), cipher.length()));
         } else {
             // Error occurred
             qWarning() << "Serial port not writeable";
@@ -296,17 +300,25 @@ void SerialLink::_readBytes(void)
             try
             {
                 std::string recovered;
-                std::string cipher(buffer.data());
+                std::string cipher(buffer.data(), buffer.size());
+
                 CBC_Mode< AES >::Decryption d;
                 d.SetKeyWithIV(key, key.size(), iv);
 
+                int num = 272 - cipher.length();
+                for(int i = 0;i < num;++i)
+                {
+                    cipher.push_back('0');
+                }
+
                 StringSource s(cipher, true, 
                     new StreamTransformationFilter(d,
-                        new StringSink(recovered)
+                        new StringSink(recovered),
+                        BlockPaddingSchemeDef::BlockPaddingScheme::ZEROS_PADDING  
                     ) 
                 ); 
 
-                emit bytesReceived(this, QByteArray(const_cast<char*>(recovered.c_str()), recovered.size()));
+                emit bytesReceived(this, QByteArray(const_cast<char*>(recovered.c_str()), recovered.length()));
             }
             catch(const Exception& e)
             {
