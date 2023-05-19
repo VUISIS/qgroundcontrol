@@ -88,27 +88,20 @@ void SerialLink::_writeBytes(const QByteArray data)
     try
     {
         std::string cipher;
-        std::string plain(data.constData(), data.length());
+        std::string plain(data.data(), data.length());
 
-        CBC_Mode< AES >::Encryption e;
+        CTR_Mode< AES >::Encryption e;
         e.SetKeyWithIV(key, key.size(), iv);
-
-        int num = 272 - plain.length();
-        for(int i = 0;i < num;++i)
-        {
-            plain.push_back('0');
-        }
 
         StringSource s(plain, true, 
             new StreamTransformationFilter(e,
-                new StringSink(cipher),
-                BlockPaddingSchemeDef::BlockPaddingScheme::ZEROS_PADDING
+                new StringSink(cipher)
             ) 
         ); 
 
         if(_port && _port->isOpen()) {
-            emit bytesSent(this, QByteArray(const_cast<char*>(cipher.c_str()), cipher.length()));
-            _port->write(QByteArray(const_cast<char*>(cipher.c_str()), cipher.length()));
+            emit bytesSent(this, QByteArray(cipher.data(), cipher.length()));
+            _port->write(QByteArray(cipher.data(), cipher.length()));
         } else {
             // Error occurred
             qWarning() << "Serial port not writeable";
@@ -300,25 +293,18 @@ void SerialLink::_readBytes(void)
             try
             {
                 std::string recovered;
-                std::string cipher(buffer.data(), buffer.size());
+                std::string cipher(buffer.data(), buffer.length());
 
-                CBC_Mode< AES >::Decryption d;
+                CTR_Mode< AES >::Decryption d;
                 d.SetKeyWithIV(key, key.size(), iv);
-
-                int num = 272 - cipher.length();
-                for(int i = 0;i < num;++i)
-                {
-                    cipher.push_back('0');
-                }
 
                 StringSource s(cipher, true, 
                     new StreamTransformationFilter(d,
-                        new StringSink(recovered),
-                        BlockPaddingSchemeDef::BlockPaddingScheme::ZEROS_PADDING  
+                        new StringSink(recovered)  
                     ) 
                 ); 
 
-                emit bytesReceived(this, QByteArray(const_cast<char*>(recovered.c_str()), recovered.length()));
+                emit bytesReceived(this, QByteArray(recovered.data(), recovered.length()));
             }
             catch(const Exception& e)
             {
